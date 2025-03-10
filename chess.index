@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>三子棋 - 三子共线</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(to bottom right, #f2f2f2, #a1c4fd);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 30px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-template-rows: repeat(3, 100px);
+      gap: 5px;
+      background-color: #444;
+      padding: 5px;
+      border-radius: 10px;
+    }
+
+    .cell {
+      width: 100px;
+      height: 100px;
+      font-size: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .cell:hover {
+      background-color: #f0f0f0;
+    }
+
+    #status, #stepCount {
+      margin-top: 15px;
+      font-size: 18px;
+    }
+
+    button {
+      margin: 10px 8px;
+      padding: 8px 16px;
+      font-size: 15px;
+      border: none;
+      border-radius: 6px;
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    #historyContainer {
+      margin-top: 20px;
+      width: 300px;
+    }
+
+    #historyList {
+      margin-top: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      padding: 10px;
+      background: #fff;
+      width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      text-align: left;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>三子棋（最多三子）</h1>
+  <div id="board"></div>
+
+  <div id="status">当前玩家：X</div>
+  <div id="stepCount">总步数：0</div>
+
+  <div>
+    <button onclick="undoMove()">悔棋</button>
+    <button onclick="resetGame()">重新开始</button>
+    <button onclick="toggleHistory()">显示/隐藏对局历史</button>
+  </div>
+
+  <div id="historyContainer">
+    <div id="historyList">暂无记录</div>
+  </div>
+
+  <script>
+    const board = document.getElementById("board");
+    const status = document.getElementById("status");
+    const stepCountEl = document.getElementById("stepCount");
+    const historyList = document.getElementById("historyList");
+
+    let currentPlayer = "X";
+    let cells = Array(9).fill(null);
+    let moveHistory = { "X": [], "O": [] };
+    let fullHistory = [];
+    let gameOver = false;
+    let stepCount = 0;
+
+    function createBoard() {
+      board.innerHTML = "";
+      for (let i = 0; i < 9; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.index = i;
+        cell.addEventListener("click", () => handleClick(i));
+        board.appendChild(cell);
+      }
+    }
+
+    function handleClick(index) {
+      if (gameOver || cells[index]) return;
+
+      placeMove(index, currentPlayer);
+    }
+
+    function placeMove(index, player) {
+      if (cells[index]) return;
+
+      // 最多三个棋子：移除最早的
+      if (moveHistory[player].length === 3) {
+        const oldest = moveHistory[player].shift();
+        cells[oldest] = null;
+        updateCell(oldest, "");
+        const idx = fullHistory.findIndex(m => m.player === player && m.index === oldest);
+        if (idx !== -1) fullHistory.splice(idx, 1);
+      }
+
+      cells[index] = player;
+      moveHistory[player].push(index);
+      fullHistory.push({ player, index });
+      updateCell(index, player);
+      stepCount++;
+      updateStepAndHistory();
+
+      if (checkWinner(player)) {
+        status.textContent = `🎉 玩家 ${player} 获胜！`;
+        gameOver = true;
+        return;
+      }
+
+      currentPlayer = player === "X" ? "O" : "X";
+      status.textContent = `当前玩家：${currentPlayer}`;
+    }
+
+    function updateCell(index, value) {
+      board.children[index].textContent = value;
+    }
+
+    function updateStepAndHistory() {
+      stepCountEl.textContent = `总步数：${stepCount}`;
+      historyList.innerHTML = fullHistory.map((move, i) =>
+        `第 ${i + 1} 步：玩家 ${move.player} 下在格子 ${move.index + 1}`
+      ).join("<br>") || "暂无记录";
+    }
+
+    function checkWinner(player) {
+      const wins = [
+        [0,1,2], [3,4,5], [6,7,8],
+        [0,3,6], [1,4,7], [2,5,8],
+        [0,4,8], [2,4,6]
+      ];
+      const moves = moveHistory[player];
+      return wins.some(line => line.every(i => moves.includes(i)));
+    }
+
+    function undoMove() {
+      if (fullHistory.length === 0) return;
+      const last = fullHistory.pop();
+      const { player, index } = last;
+      cells[index] = null;
+      const arr = moveHistory[player];
+      arr.splice(arr.lastIndexOf(index), 1);
+      updateCell(index, "");
+      currentPlayer = player;
+      gameOver = false;
+      stepCount--;
+      updateStepAndHistory();
+      status.textContent = `当前玩家：${currentPlayer}`;
+    }
+
+    function resetGame() {
+      cells = Array(9).fill(null);
+      moveHistory = { "X": [], "O": [] };
+      fullHistory = [];
+      stepCount = 0;
+      currentPlayer = "X";
+      gameOver = false;
+      status.textContent = `当前玩家：X`;
+      updateStepAndHistory();
+      createBoard();
+    }
+
+    function toggleHistory() {
+      historyList.style.display = historyList.style.display === "none" ? "block" : "none";
+    }
+
+    createBoard();
+  </script>
+
+</body>
+</html>
